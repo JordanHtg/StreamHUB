@@ -84,8 +84,8 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
         rating: 4.9,
         studio: 'StreamHUB Studios',
         cast: '',
-        poster: 'https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=700&q=80',
-        videoUrl: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
+        poster: '',
+        videoUrl: '',
       });
       setSelectedGenres(['Dark Fantasy', 'Action & Adventure']);
       setSourceMode('local');
@@ -199,16 +199,31 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
     setErrorMessage('');
     setSuccessMessage('');
     setStorageStatus(null);
+
+    if (!editItem && sourceMode === 'local' && !localVideoUrl) {
+      setErrorMessage('⚠️ Silakan pilih file video lokal (MP4/MKV) terlebih dahulu atau beralih ke tab "Stream URL".');
+      return;
+    }
+    if (!editItem && sourceMode === 'url' && (!data.videoUrl || !data.videoUrl.trim())) {
+      setErrorMessage('⚠️ Silakan masukkan link URL video (MP4 / HLS .m3u8) pada kolom Stream URL.');
+      return;
+    }
+
     setUploadProgress(15);
     setUploadStage('Encoding media chunks & preparing payload...');
     try {
+      const resolvedVideoUrl =
+        sourceMode === 'local' && localVideoUrl
+          ? localVideoUrl
+          : data.videoUrl || (editItem ? editItem.videoUrl : '');
+
       const finalData = {
         ...data,
         genre: selectedGenres.join(', '),
         poster: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
         banner: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
         thumbnail: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
-        videoUrl: sourceMode === 'local' && localVideoUrl ? localVideoUrl : data.videoUrl,
+        videoUrl: resolvedVideoUrl,
         subtitleUrl: JSON.stringify(subtitleTracks),
         subtitles: subtitleTracks,
       };

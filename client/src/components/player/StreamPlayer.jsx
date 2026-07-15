@@ -30,11 +30,8 @@ const StreamPlayer = ({
   const containerRef = useRef(null);
 
   // Playback state
-  const [currentUrl, setCurrentUrl] = useState(() => {
-    if (url && !url.includes('commondatastorage.googleapis.com')) return url;
-    return RELIABLE_MIRRORS[0].url;
-  });
-  const [mirrorIndex, setMirrorIndex] = useState(0);
+  const [currentUrl, setCurrentUrl] = useState(url || '');
+  const [mirrorIndex, setMirrorIndex] = useState(-1);
   const [playing, setPlaying] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
@@ -66,15 +63,11 @@ const StreamPlayer = ({
   const controlsTimeoutRef = useRef(null);
 
   useEffect(() => {
-    if (url) {
-      if (!url.includes('commondatastorage.googleapis.com')) {
-        setCurrentUrl(url);
-      } else {
-        setCurrentUrl(RELIABLE_MIRRORS[0].url);
-      }
+    if (url !== undefined) {
+      setCurrentUrl(url || '');
       setIsBuffering(true);
       setHasError(false);
-      setMirrorIndex(0);
+      setMirrorIndex(-1);
     }
   }, [url]);
 
@@ -431,18 +424,7 @@ const StreamPlayer = ({
               return;
             }
 
-            // Auto-switch to next reliable CDN mirror before showing error overlay
-            if (mirrorIndex < RELIABLE_MIRRORS.length - 1) {
-              const nextIdx = mirrorIndex + 1;
-              console.warn(`Primary source failed. Auto-switching to CDN mirror #${nextIdx + 1}`);
-              setMirrorIndex(nextIdx);
-              setCurrentUrl(RELIABLE_MIRRORS[nextIdx].url);
-              setIsBuffering(true);
-              setHasError(false);
-              triggerAlert(`⚡ Auto-Switched to ${RELIABLE_MIRRORS[nextIdx].name}`);
-              return;
-            }
-
+            // DO NOT auto-switch or change currentUrl! Always respect user's uploaded video URL.
             setIsBuffering(false);
             setHasError(true);
           }}
@@ -474,46 +456,48 @@ const StreamPlayer = ({
               The video source URL could not be played (`{currentUrl.slice(0, 45)}...`). This usually happens if a local file blob expired across browser reloads or the CDN link is restricted.
             </p>
 
-            <div className="flex flex-col items-center justify-center gap-2.5 w-full max-w-xl">
-              <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-1">
-                ⚡ Select High-Speed Public Mirror Server:
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
-                {RELIABLE_MIRRORS.map((mirror, idx) => (
-                  <button
-                    key={mirror.name}
-                    onClick={() => {
-                      setMirrorIndex(idx);
-                      setCurrentUrl(mirror.url);
-                      setHasError(false);
-                      setIsBuffering(true);
-                      setPlaying(true);
-                      triggerAlert(`⚡ Switched to: ${mirror.name}`);
-                    }}
-                    className="p-2.5 bg-stream-dark hover:bg-stream-red text-left rounded-xl border border-white/10 hover:border-stream-red transition-all flex flex-col justify-center shadow group"
-                  >
-                    <span className="text-xs font-bold text-white flex items-center justify-between">
-                      <span className="truncate">{mirror.name}</span>
-                      <Play className="w-3 h-3 fill-white flex-shrink-0 ml-1.5" />
-                    </span>
-                    <span className="text-[10px] text-stream-gray-400 group-hover:text-white/80 truncate">
-                      {mirror.url.includes('.m3u8') ? 'HLS Adaptive Bitrate (4K/HD)' : 'Direct MP4 High Speed'}
-                    </span>
-                  </button>
-                ))}
-              </div>
-              <div className="flex items-center space-x-3 mt-2">
-                <button
-                  onClick={() => {
-                    setHasError(false);
-                    setIsBuffering(true);
-                    setPlaying(true);
-                    if (playerRef.current) playerRef.current.seekTo(0);
-                  }}
-                  className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-xs flex items-center space-x-2 transition-colors"
-                >
-                  <span>🔄 Retry Current URL</span>
-                </button>
+            <div className="flex flex-col items-center justify-center gap-4 w-full max-w-xl">
+              <button
+                onClick={() => {
+                  setCurrentUrl(url || '');
+                  setHasError(false);
+                  setIsBuffering(true);
+                  setPlaying(true);
+                  if (playerRef.current) playerRef.current.seekTo(0);
+                }}
+                className="px-6 py-3 bg-stream-red hover:bg-stream-red-hover text-white rounded-xl font-bold text-sm flex items-center justify-center space-x-2.5 shadow-2xl glow-red transition-transform transform hover:scale-105 w-full sm:w-auto"
+              >
+                <span>🔄 Retry Playing ({title || 'Original Video'})</span>
+              </button>
+
+              <div className="pt-3 border-t border-white/10 w-full">
+                <p className="text-[11px] font-bold text-stream-gray-400 uppercase tracking-wider mb-2">
+                  ⚡ Optional: Test Player with Public Demo Mirror Server
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                  {RELIABLE_MIRRORS.map((mirror, idx) => (
+                    <button
+                      key={mirror.name}
+                      onClick={() => {
+                        setMirrorIndex(idx);
+                        setCurrentUrl(mirror.url);
+                        setHasError(false);
+                        setIsBuffering(true);
+                        setPlaying(true);
+                        triggerAlert(`⚡ Switched to: ${mirror.name}`);
+                      }}
+                      className="p-2.5 bg-stream-dark hover:bg-white/10 text-left rounded-xl border border-white/10 hover:border-white/30 transition-all flex flex-col justify-center shadow group"
+                    >
+                      <span className="text-xs font-bold text-white flex items-center justify-between">
+                        <span className="truncate">{mirror.name}</span>
+                        <Play className="w-3 h-3 fill-white flex-shrink-0 ml-1.5" />
+                      </span>
+                      <span className="text-[10px] text-stream-gray-400 truncate">
+                        {mirror.url.includes('.m3u8') ? 'HLS Adaptive Bitrate (4K/HD)' : 'Direct MP4 High Speed'}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             </div>
           </div>
