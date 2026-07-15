@@ -74,6 +74,20 @@ const MovieDetail = () => {
     }
   };
 
+  const resolveSubtitles = (item) => {
+    if (!item) return [];
+    if (item.subtitles && Array.isArray(item.subtitles)) return item.subtitles;
+    if (item.subtitleUrl) {
+      try {
+        const parsed = JSON.parse(item.subtitleUrl);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        return [{ id: 1, label: 'Indonesian (CC)', language: 'Indonesian', fileUrl: item.subtitleUrl }];
+      }
+    }
+    return [];
+  };
+
   return (
     <div className="min-h-screen bg-stream-black pb-24 selection:bg-stream-red selection:text-white">
       {/* StreamPlayer Overlay Modal if Active */}
@@ -85,6 +99,7 @@ const MovieDetail = () => {
             subtitleText={movie.resolution}
             contentId={movie.id}
             isSeries={false}
+            subtitles={resolveSubtitles(movie)}
             onClose={() => setActivePlayer(null)}
           />
         </div>

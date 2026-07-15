@@ -74,6 +74,20 @@ const SeriesDetail = () => {
     return null;
   };
 
+  const resolveSubtitles = (item) => {
+    if (!item) return [];
+    if (item.subtitles && Array.isArray(item.subtitles)) return item.subtitles;
+    if (item.subtitleUrl) {
+      try {
+        const parsed = JSON.parse(item.subtitleUrl);
+        if (Array.isArray(parsed)) return parsed;
+      } catch (e) {
+        return [{ id: 1, label: 'Indonesian (CC)', language: 'Indonesian', fileUrl: item.subtitleUrl }];
+      }
+    }
+    return [];
+  };
+
   return (
     <div className="min-h-screen bg-stream-black pb-24 selection:bg-stream-red selection:text-white">
       {/* StreamPlayer Modal for Episode */}
@@ -86,6 +100,7 @@ const SeriesDetail = () => {
             contentId={series.id}
             isSeries={true}
             episodeId={activeEpisode.id}
+            subtitles={resolveSubtitles(activeEpisode)}
             nextEpisode={getNextEpisode(activeEpisode)}
             prevEpisode={getPrevEpisode(activeEpisode)}
             onNextEpisode={(nextEp) => setActiveEpisode(nextEp)}

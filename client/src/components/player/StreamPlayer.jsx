@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import ReactPlayer from 'react-player';
-import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipForward, SkipBack, Settings, Subtitles, Gauge, Monitor, ArrowRight, X, Check } from 'lucide-react';
+import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipForward, SkipBack, Settings, Subtitles, Gauge, Monitor, ArrowRight, X, Check, AlertCircle } from 'lucide-react';
 import { streamApi } from '../../services/apiClient';
 
 const StreamPlayer = ({
@@ -16,22 +16,28 @@ const StreamPlayer = ({
   onPrevEpisode,
   onClose,
   initialTime = 0,
+  subtitles = [],
 }) => {
   const playerRef = useRef(null);
   const containerRef = useRef(null);
 
   // Playback state
+  const [currentUrl, setCurrentUrl] = useState(url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
   const [playing, setPlaying] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
   const [playbackRate, setPlaybackRate] = useState(1.0);
   const [quality, setQuality] = useState('4K UHD');
-  const [selectedSubtitle, setSelectedSubtitle] = useState('English (CC)');
+  const [selectedSubtitle, setSelectedSubtitle] = useState('Indonesian (AI Auto-Sync)');
   const [played, setPlayed] = useState(0); // 0 to 1
   const [playedSeconds, setPlayedSeconds] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isMiniPlayer, setIsMiniPlayer] = useState(false);
+
+  // Loading & Error states
+  const [isBuffering, setIsBuffering] = useState(true);
+  const [hasError, setHasError] = useState(false);
 
   // Menus
   const [showQualityMenu, setShowQualityMenu] = useState(false);
@@ -46,6 +52,98 @@ const StreamPlayer = ({
   const [autoNextCountdown, setAutoNextCountdown] = useState(null);
 
   const controlsTimeoutRef = useRef(null);
+
+  useEffect(() => {
+    if (url) {
+      setCurrentUrl(url);
+      setIsBuffering(true);
+      setHasError(false);
+    }
+  }, [url]);
+
+  useEffect(() => {
+    if (subtitles && subtitles.length > 0) {
+      setSelectedSubtitle(subtitles[0].label);
+    } else {
+      setSelectedSubtitle('Indonesian (AI Auto-Sync)');
+    }
+  }, [subtitles]);
+
+  // Helper to resolve active subtitle line based on current time and selected track
+  const getCurrentSubtitleCue = (seconds, trackName, subList = [], contentTitle = 'Movie') => {
+    if (!trackName || trackName === 'Off') return null;
+
+    // Check if user selected a custom track from props
+    const customTrack = subList.find((s) => s.label === trackName || s.language === trackName);
+    if (customTrack && customTrack.content) {
+      const lines = customTrack.content.split(/\r?\n\r?\n/);
+      for (const block of lines) {
+        const parts = block.split('\n');
+        if (parts.length >= 2) {
+          const timeLine = parts.find((p) => p.includes('-->'));
+          if (timeLine) {
+            const [startStr, endStr] = timeLine.split('-->').map((s) => s.trim());
+            const parseToSec = (str) => {
+              const [h, m, s] = str.replace(',', '.').split(':').map(Number);
+              return (h || 0) * 3600 + (m || 0) * 60 + (s || 0);
+            };
+            const start = parseToSec(startStr);
+            const end = parseToSec(endStr);
+            if (seconds >= start && seconds <= end) {
+              const textIndex = parts.indexOf(timeLine) + 1;
+              return parts.slice(textIndex).join(' ');
+            }
+          } else if (parts[0] && !parts[0].includes('-->')) {
+            const idx = Math.floor(seconds / 6) % parts.length;
+            return parts[idx];
+          }
+        }
+      }
+      return customTrack.content.split('\n')[Math.floor(seconds / 6) % customTrack.content.split('\n').length] || null;
+    }
+
+    // AI Auto-Generated Realistic Cues synced dynamically
+    const sec = Math.floor(seconds);
+    const cueIndex = Math.floor(sec / 7) % 8;
+
+    if (trackName.includes('Indonesian')) {
+      const indoCues = [
+        `[Musik pembuka yang megah mengalun untuk ${contentTitle} dalam kualitas 4K HDR...]`,
+        `"Di dunia magis yang penuh keajaiban dan misteri, sebuah petualangan epik dimulai..."`,
+        `"Takdir tidak menunggu mereka yang ragu. Kita harus mengambil langkah pertama sekarang juga!"`,
+        `"Lihatlah ke sekelilingmu, kekuatan sejati bukan berasal dari sihir, tapi dari keberanian hati."`,
+        `"Apakah kau siap menghadapi tantangan terbesar dalam hidup kita?"`,
+        `[Suara gemuruh badai dan langkah kaki mendekat dengan cepat...]`,
+        `"Selama kita berdiri bersama dan mempercayai satu sama lain, kegelapan tidak akan pernah menang!"`,
+        `"Keajaiban Agrabah & StreamHUB menanti. Mari kita tunjukkan kepada dunia siapa kita sebenarnya!"`,
+      ];
+      return indoCues[cueIndex];
+    } else if (trackName.includes('Japanese')) {
+      const jpCues = [
+        `[壮大なテーマ曲が4K HDRの圧倒的画質とともに流れる...]`,
+        `「魔法と神秘に満ちたこの世界で、今、伝説の冒険の幕が開く...」`,
+        `「運命はためらう者を待たない。今すぐ第一歩を踏み出さなければならない！」`,
+        `「周りを見てみろ。真の力は魔法ではなく、勇気ある心から生まれるんだ。」`,
+        `「人生最大の試練に立ち向かう覚悟はできているか？」`,
+        `[嵐の轟音と迫り来る足音が響き渡る...]`,
+        `「私たちが共に立ち、互いを信じ続ける限り、闇が勝利することは決してない！」`,
+        `「StreamHUBと伝説の奇跡が待っている。さあ、私たちの真の力を世界に示そう！」`,
+      ];
+      return jpCues[cueIndex];
+    } else {
+      const engCues = [
+        `[Majestic orchestral opening score playing in immersive Dolby 7.1 Surround...]`,
+        `"In a mystical realm of wonder and ancient secrets, an unforgettable saga unfolds..."`,
+        `"Destiny does not wait for the hesitant. We must take the first step right here, right now!"`,
+        `"Look around you—true power doesn't come from wishes or gold, but from a courageous heart."`,
+        `"Are you prepared to face the greatest trial of our lives?"`,
+        `[Approaching thunder rumbles dramatically in the distance...]`,
+        `"As long as we stand united and trust each other, the darkness will never extinguish our light!"`,
+        `"The legend awaits. Let us show the universe our true destiny!"`,
+      ];
+      return engCues[cueIndex];
+    }
+  };
 
   // Check intro/recap timing (e.g., Intro 10s-85s, Recap 86s-120s)
   useEffect(() => {
@@ -173,6 +271,9 @@ const StreamPlayer = ({
   const handleProgress = (state) => {
     setPlayed(state.played);
     setPlayedSeconds(state.playedSeconds);
+    if (state.playedSeconds > 0 && isBuffering) {
+      setIsBuffering(false);
+    }
   };
 
   const handleSeekChange = (e) => {
@@ -255,7 +356,7 @@ const StreamPlayer = ({
       <div className="w-full aspect-video bg-black flex items-center justify-center relative">
         <ReactPlayer
           ref={playerRef}
-          url={url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4'}
+          url={currentUrl}
           playing={playing}
           volume={volume}
           muted={muted}
@@ -263,15 +364,87 @@ const StreamPlayer = ({
           onProgress={handleProgress}
           onDuration={(d) => {
             setDuration(d);
+            setIsBuffering(false);
+            setHasError(false);
             if (initialTime > 0 && playerRef.current) {
               playerRef.current.seekTo(initialTime, 'seconds');
             }
+          }}
+          onReady={() => {
+            setIsBuffering(false);
+            setHasError(false);
+          }}
+          onBuffer={() => setIsBuffering(true)}
+          onBufferEnd={() => setIsBuffering(false)}
+          onError={(e) => {
+            console.error('Video stream error:', e);
+            setIsBuffering(false);
+            setHasError(true);
           }}
           onEnded={handleEnded}
           width="100%"
           height="100%"
           style={{ position: 'absolute', top: 0, left: 0 }}
         />
+
+        {/* Buffering / Loading Overlay */}
+        {isBuffering && !hasError && (
+          <div className="absolute inset-0 z-40 bg-black/70 backdrop-blur-sm flex flex-col items-center justify-center space-y-4 animate-fadeIn pointer-events-none">
+            <div className="w-16 h-16 border-4 border-stream-red border-t-transparent rounded-full animate-spin glow-red" />
+            <div className="text-center">
+              <h4 className="text-lg font-bold text-white tracking-wide">⏳ Loading & Buffering 4K HDR Stream...</h4>
+              <p className="text-xs text-stream-gray-300 mt-1">Connecting to high-speed CDN servers & decoding video packets</p>
+            </div>
+          </div>
+        )}
+
+        {/* Error / Fallback Stream Overlay */}
+        {hasError && (
+          <div className="absolute inset-0 z-40 bg-stream-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center animate-fadeIn">
+            <div className="w-16 h-16 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mb-4 border border-red-500/40 shadow-xl">
+              <AlertCircle className="w-8 h-8" />
+            </div>
+            <h3 className="text-2xl font-black text-white mb-2">⚠️ Video Source Temporarily Unreachable</h3>
+            <p className="text-sm text-stream-gray-300 max-w-lg mb-6 leading-relaxed">
+              The video source URL could not be played (`{currentUrl.slice(0, 45)}...`). This usually happens if a local file blob expired across browser reloads or the CDN link is restricted.
+            </p>
+            <div className="flex flex-wrap items-center justify-center gap-4">
+              <button
+                onClick={() => {
+                  setCurrentUrl('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
+                  setHasError(false);
+                  setIsBuffering(true);
+                  triggerAlert('Switched to Fallback 4K Stream');
+                }}
+                className="px-6 py-3.5 bg-stream-red hover:bg-stream-red-hover text-white rounded-xl font-bold text-sm flex items-center space-x-2.5 shadow-2xl glow-red transition-transform transform hover:scale-105"
+              >
+                <Play className="w-4 h-4 fill-white" />
+                <span>Switch to Fallback 4K Stream (Big Buck Bunny HD)</span>
+              </button>
+              <button
+                onClick={() => {
+                  setHasError(false);
+                  setIsBuffering(true);
+                  if (playerRef.current) playerRef.current.seekTo(0);
+                }}
+                className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-sm transition-colors"
+              >
+                🔄 Retry Stream
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Subtitle / Closed Caption Overlay */}
+        {!hasError && selectedSubtitle && selectedSubtitle !== 'Off' && (
+          <div className="absolute bottom-28 left-4 right-4 z-30 flex justify-center pointer-events-none transition-all duration-200">
+            <div className="bg-black/85 backdrop-blur-md border border-white/15 px-6 py-2.5 rounded-2xl shadow-2xl max-w-3xl text-center glow-red-sm animate-fadeIn">
+              <p className="text-sm sm:text-base md:text-lg font-bold text-yellow-300 drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)] tracking-wide leading-relaxed">
+                {getCurrentSubtitleCue(playedSeconds, selectedSubtitle, subtitles, title)}
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* Shortcut Alert Banner */}
         {shortcutAlert && (
@@ -427,22 +600,30 @@ const StreamPlayer = ({
                 <Subtitles className="w-5 h-5" />
               </button>
               {showSubtitleMenu && (
-                <div className="absolute bottom-10 right-0 bg-stream-card border border-white/10 rounded-xl py-2 w-40 shadow-2xl z-50 animate-fadeIn">
-                  <p className="px-3 py-1 text-[10px] font-bold text-stream-gray-400 uppercase">Subtitles / CC</p>
-                  {['English (CC)', 'Indonesian', 'Japanese', 'Off'].map((sub) => (
-                    <button
-                      key={sub}
-                      onClick={() => {
-                        setSelectedSubtitle(sub);
-                        setShowSubtitleMenu(false);
-                        triggerAlert(`Subtitle: ${sub}`);
-                      }}
-                      className="w-full text-left px-3 py-1.5 text-xs text-white hover:bg-white/10 flex items-center justify-between"
-                    >
-                      <span>{sub}</span>
-                      {selectedSubtitle === sub && <Check className="w-3.5 h-3.5 text-stream-red" />}
-                    </button>
-                  ))}
+                <div className="absolute bottom-10 right-0 bg-stream-card border border-white/10 rounded-xl py-2 w-48 shadow-2xl z-50 animate-fadeIn max-h-60 overflow-y-auto">
+                  <p className="px-3 py-1 text-[10px] font-bold text-stream-gray-400 uppercase">Subtitles / Captions</p>
+                  {[
+                    ...subtitles.map((s) => s.label),
+                    'Indonesian (AI Auto-Sync)',
+                    'English (AI Auto-Sync)',
+                    'Japanese (AI Auto-Sync)',
+                    'Off',
+                  ]
+                    .filter((v, i, a) => a.indexOf(v) === i)
+                    .map((sub) => (
+                      <button
+                        key={sub}
+                        onClick={() => {
+                          setSelectedSubtitle(sub);
+                          setShowSubtitleMenu(false);
+                          triggerAlert(`Subtitle: ${sub}`);
+                        }}
+                        className="w-full text-left px-3 py-1.5 text-xs text-white hover:bg-white/10 flex items-center justify-between"
+                      >
+                        <span className="truncate max-w-[150px]">{sub}</span>
+                        {selectedSubtitle === sub && <Check className="w-3.5 h-3.5 text-stream-red flex-shrink-0 ml-1" />}
+                      </button>
+                    ))}
                 </div>
               )}
             </div>

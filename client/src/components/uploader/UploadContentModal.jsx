@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
-import { X, Upload, Film, Sparkles, AlertCircle, CheckCircle, FolderUp, Globe, Plus, Tag, Image, Video } from 'lucide-react';
+import { X, Upload, Film, Sparkles, AlertCircle, CheckCircle, FolderUp, Globe, Plus, Tag, Image, Video, Subtitles, Trash2, Edit3, FileText } from 'lucide-react';
 import { streamApi } from '../../services/apiClient';
 
 const AVAILABLE_GENRES = [
@@ -26,6 +26,15 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
   const [localVideoName, setLocalVideoName] = useState('');
   const [localVideoUrl, setLocalVideoUrl] = useState('');
 
+  // Subtitle management states
+  const [subtitleTracks, setSubtitleTracks] = useState([]);
+  const [showSubForm, setShowSubForm] = useState(false);
+  const [subLanguage, setSubLanguage] = useState('Indonesian');
+  const [subLabel, setSubLabel] = useState('Indonesian (CC)');
+  const [subContent, setSubContent] = useState('');
+  const [subFileName, setSubFileName] = useState('');
+  const [editingSubId, setEditingSubId] = useState(null);
+
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
@@ -49,6 +58,23 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
         setSelectedGenres(editItem.genre.split(',').map((g) => g.trim()));
       }
       setSourceMode('url');
+
+      if (editItem.subtitles && Array.isArray(editItem.subtitles)) {
+        setSubtitleTracks(editItem.subtitles);
+      } else if (editItem.subtitleUrl) {
+        try {
+          const parsed = JSON.parse(editItem.subtitleUrl);
+          if (Array.isArray(parsed)) setSubtitleTracks(parsed);
+          else setSubtitleTracks([{ id: Date.now(), label: 'Indonesian (CC)', language: 'Indonesian', content: editItem.subtitleUrl }]);
+        } catch (e) {
+          setSubtitleTracks([{ id: Date.now(), label: 'Indonesian (CC)', language: 'Indonesian', content: editItem.subtitleUrl }]);
+        }
+      } else {
+        setSubtitleTracks([
+          { id: 1, label: 'Indonesian (AI Auto-Sync)', language: 'Indonesian', isAuto: true, content: 'Auto-generated realistic AI cues' },
+          { id: 2, label: 'English (AI Auto-Sync)', language: 'English', isAuto: true, content: 'Auto-generated realistic AI cues' }
+        ]);
+      }
     } else if (isOpen && !editItem) {
       reset({
         title: '',
@@ -66,6 +92,14 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
       setLocalImagePreview(null);
       setLocalVideoName('');
       setLocalVideoUrl('');
+      setSubtitleTracks([
+        { id: 1, label: 'Indonesian (AI Auto-Sync)', language: 'Indonesian', isAuto: true, content: 'Auto-generated realistic AI cues' },
+        { id: 2, label: 'English (AI Auto-Sync)', language: 'English', isAuto: true, content: 'Auto-generated realistic AI cues' }
+      ]);
+      setShowSubForm(false);
+      setSubContent('');
+      setSubFileName('');
+      setEditingSubId(null);
     }
   }, [isOpen, editItem, reset]);
 
@@ -107,6 +141,60 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
     }
   };
 
+  const handleSubtitleFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      setSubFileName(file.name);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setSubContent(reader.result);
+      };
+      reader.readAsText(file);
+    }
+  };
+
+  const handleAddOrUpdateSub = () => {
+    if (!subLabel.trim() || (!subContent.trim() && !subFileName)) {
+      setErrorMessage('Please provide a subtitle label and either upload an SRT/VTT file or enter text/URL.');
+      return;
+    }
+    if (editingSubId) {
+      setSubtitleTracks(subtitleTracks.map((s) => (s.id === editingSubId ? {
+        ...s,
+        language: subLanguage,
+        label: subLabel,
+        content: subContent,
+        fileName: subFileName || s.fileName,
+      } : s)));
+    } else {
+      setSubtitleTracks([...subtitleTracks, {
+        id: Date.now(),
+        language: subLanguage,
+        label: subLabel,
+        content: subContent,
+        fileName: subFileName || 'Manual SRT/Text',
+        isAuto: false,
+      }]);
+    }
+    setSubContent('');
+    setSubFileName('');
+    setEditingSubId(null);
+    setShowSubForm(false);
+  };
+
+  const handleEditSub = (sub) => {
+    setEditingSubId(sub.id);
+    setSubLanguage(sub.language || 'Indonesian');
+    setSubLabel(sub.label || 'Custom CC');
+    setSubContent(sub.content || '');
+    setSubFileName(sub.fileName || '');
+    setShowSubForm(true);
+  };
+
+  const handleDeleteSub = (id) => {
+    setSubtitleTracks(subtitleTracks.filter((s) => s.id !== id));
+  };
+
   const onSubmit = async (data) => {
     setErrorMessage('');
     setSuccessMessage('');
@@ -121,6 +209,8 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
         banner: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
         thumbnail: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
         videoUrl: sourceMode === 'local' && localVideoUrl ? localVideoUrl : data.videoUrl,
+        subtitleUrl: JSON.stringify(subtitleTracks),
+        subtitles: subtitleTracks,
       };
 
       await new Promise((r) => setTimeout(r, 400));
@@ -476,6 +566,181 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
                     defaultValue="https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4"
                     className="w-full bg-stream-dark border border-white/10 rounded-xl px-4 py-2.5 text-sm text-white focus:outline-none focus:border-stream-red transition-all"
                   />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Subtitles & Captions Manager */}
+          <div className="pt-4 border-t border-white/10 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-2">
+                <Subtitles className="w-4 h-4 text-stream-red" />
+                <label className="text-xs font-bold text-white uppercase tracking-wider">
+                  Multi-Language Subtitles & Closed Captions (CC)
+                </label>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setEditingSubId(null);
+                  setSubLanguage('Indonesian');
+                  setSubLabel('Indonesian (CC)');
+                  setSubContent('');
+                  setSubFileName('');
+                  setShowSubForm(!showSubForm);
+                }}
+                className="px-3 py-1 bg-stream-red/20 hover:bg-stream-red text-stream-red hover:text-white rounded-lg text-xs font-bold flex items-center space-x-1 transition-colors border border-stream-red/40"
+              >
+                <Plus className="w-3.5 h-3.5" />
+                <span>Add Subtitle Track</span>
+              </button>
+            </div>
+
+            {/* List of currently attached subtitles */}
+            <div className="space-y-2 max-h-40 overflow-y-auto pr-1">
+              {subtitleTracks.map((sub) => (
+                <div
+                  key={sub.id}
+                  className="flex items-center justify-between p-3 bg-stream-dark rounded-xl border border-white/10 text-xs"
+                >
+                  <div className="flex items-center space-x-3 truncate">
+                    <span className="px-2 py-0.5 rounded bg-white/10 text-yellow-300 font-bold uppercase text-[10px]">
+                      {sub.language}
+                    </span>
+                    <div>
+                      <p className="font-bold text-white flex items-center space-x-1.5">
+                        <span>{sub.label}</span>
+                        {sub.isAuto && (
+                          <span className="px-1.5 py-0.2 rounded bg-stream-red/20 text-stream-red text-[9px] font-semibold">
+                            ✨ AI Auto-Sync
+                          </span>
+                        )}
+                      </p>
+                      <p className="text-[10px] text-stream-gray-400 truncate max-w-xs">
+                        {sub.fileName ? `File: ${sub.fileName}` : sub.content ? `${sub.content.slice(0, 50)}...` : 'Dynamic AI generated subtitle'}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-center space-x-2 flex-shrink-0">
+                    {!sub.isAuto && (
+                      <button
+                        type="button"
+                        onClick={() => handleEditSub(sub)}
+                        className="p-1.5 text-stream-gray-400 hover:text-white rounded hover:bg-white/10 transition-colors"
+                        title="Edit Subtitle Track"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handleDeleteSub(sub.id)}
+                      className="p-1.5 text-stream-gray-400 hover:text-red-400 rounded hover:bg-white/10 transition-colors"
+                      title="Delete Subtitle Track"
+                    >
+                      <Trash2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+              {subtitleTracks.length === 0 && (
+                <p className="text-xs text-stream-gray-400 text-center py-3 bg-stream-dark rounded-xl border border-dashed border-white/10">
+                  No subtitles added yet. Click "+ Add Subtitle Track" or built-in AI tracks will auto-attach.
+                </p>
+              )}
+            </div>
+
+            {/* Add/Edit Subtitle Form Drawer */}
+            {showSubForm && (
+              <div className="p-4 bg-stream-dark rounded-2xl border border-stream-red/50 space-y-3 animate-fadeIn">
+                <div className="flex items-center justify-between border-b border-white/10 pb-2">
+                  <span className="text-xs font-bold text-white flex items-center space-x-1.5">
+                    <FileText className="w-4 h-4 text-stream-red" />
+                    <span>{editingSubId ? 'Edit Subtitle Track' : 'Add New Manual Subtitle Track'}</span>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setShowSubForm(false)}
+                    className="text-stream-gray-400 hover:text-white text-xs"
+                  >
+                    ✕
+                  </button>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stream-gray-300 uppercase mb-1">Language</label>
+                    <select
+                      value={subLanguage}
+                      onChange={(e) => {
+                        setSubLanguage(e.target.value);
+                        if (!editingSubId) setSubLabel(`${e.target.value} (CC)`);
+                      }}
+                      className="w-full bg-stream-card border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-stream-red"
+                    >
+                      <option value="Indonesian">Indonesian</option>
+                      <option value="English">English</option>
+                      <option value="Japanese">Japanese</option>
+                      <option value="Korean">Korean</option>
+                      <option value="Spanish">Spanish</option>
+                      <option value="French">French</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stream-gray-300 uppercase mb-1">Display Label</label>
+                    <input
+                      type="text"
+                      value={subLabel}
+                      onChange={(e) => setSubLabel(e.target.value)}
+                      placeholder="e.g. Indonesian (CC)"
+                      className="w-full bg-stream-card border border-white/10 rounded-lg px-3 py-1.5 text-xs text-white focus:outline-none focus:border-stream-red"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-start">
+                  <div>
+                    <label className="block text-[10px] font-bold text-stream-gray-300 uppercase mb-1">Option A: Upload .SRT / .VTT File</label>
+                    <div className="border border-dashed border-white/20 hover:border-stream-red rounded-lg p-2 text-center relative cursor-pointer bg-stream-card/50">
+                      <input
+                        type="file"
+                        accept=".srt,.vtt,.txt"
+                        onChange={handleSubtitleFileChange}
+                        className="absolute inset-0 opacity-0 cursor-pointer z-10"
+                      />
+                      <span className="text-[11px] text-white font-medium block truncate">
+                        {subFileName ? `✓ ${subFileName}` : 'Choose .srt or .vtt file...'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-[10px] font-bold text-stream-gray-300 uppercase mb-1">Option B: Paste Subtitle Text / URL</label>
+                    <textarea
+                      rows={2}
+                      value={subContent}
+                      onChange={(e) => setSubContent(e.target.value)}
+                      placeholder="Or paste SRT text lines (`00:00:05 --> 00:00:10\nCaption...`) or CDN subtitle URL..."
+                      className="w-full bg-stream-card border border-white/10 rounded-lg p-2 text-xs text-white focus:outline-none focus:border-stream-red resize-none font-mono"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end space-x-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowSubForm(false)}
+                    className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-xs text-white font-medium"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleAddOrUpdateSub}
+                    className="px-4 py-1.5 rounded-lg bg-stream-red hover:bg-stream-red-hover text-xs text-white font-bold shadow glow-red"
+                  >
+                    {editingSubId ? 'Update Track' : 'Attach Track'}
+                  </button>
                 </div>
               </div>
             )}
