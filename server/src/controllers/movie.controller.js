@@ -169,6 +169,9 @@ const createMovie = async (req, res) => {
     } = req.body;
 
     const finalReleaseDate = releaseDate || new Date().toISOString().split('T')[0];
+    const cleanedDuration = parseInt(duration) || 120;
+    const cleanedRating = rating ? parseFloat(String(rating).replace(',', '.')) || 4.8 : 4.8;
+    const cleanedUploaderId = req.user && req.user.id ? parseInt(req.user.id) : null;
 
     if (!title || !description || !genre || !duration) {
       return res.status(400).json({
@@ -182,13 +185,13 @@ const createMovie = async (req, res) => {
         title,
         description,
         genre,
-        duration: parseInt(duration),
+        duration: cleanedDuration,
         releaseDate: finalReleaseDate,
         country: country || 'USA',
         language: language || 'English',
         studio: studio || 'StreamHUB Studios',
         resolution: resolution || '4K UHD',
-        rating: rating ? parseFloat(rating) : 4.8,
+        rating: cleanedRating,
         cast: cast || '',
         director: director || '',
         writer: writer || '',
@@ -199,7 +202,7 @@ const createMovie = async (req, res) => {
         videoUrl: videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
         subtitleUrl: subtitleUrl || null,
         status: status || 'PUBLISHED',
-        uploaderId: req.user.id,
+        uploaderId: cleanedUploaderId,
       },
     });
 
@@ -210,7 +213,8 @@ const createMovie = async (req, res) => {
     });
   } catch (error) {
     console.error('Create movie error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error creating movie.' });
+    const errMsg = error?.message ? error.message.split('\n').pop() : (typeof error === 'string' ? error : 'Unknown database error');
+    return res.status(500).json({ success: false, message: `Cloud MySQL Error: ${errMsg}` });
   }
 };
 
@@ -230,9 +234,14 @@ const updateMovie = async (req, res) => {
       return res.status(403).json({ success: false, message: 'You do not have permission to modify this movie.' });
     }
 
+    const updateData = { ...req.body };
+    if (updateData.duration) updateData.duration = parseInt(updateData.duration) || existingMovie.duration;
+    if (updateData.rating) updateData.rating = parseFloat(String(updateData.rating).replace(',', '.')) || existingMovie.rating;
+    if (updateData.uploaderId) updateData.uploaderId = parseInt(updateData.uploaderId);
+
     const updatedMovie = await prisma.movie.update({
       where: { id: movieId },
-      data: req.body,
+      data: updateData,
     });
 
     return res.status(200).json({
@@ -242,7 +251,8 @@ const updateMovie = async (req, res) => {
     });
   } catch (error) {
     console.error('Update movie error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error updating movie.' });
+    const errMsg = error?.message ? error.message.split('\n').pop() : (typeof error === 'string' ? error : 'Unknown database error');
+    return res.status(500).json({ success: false, message: `Cloud MySQL Error: ${errMsg}` });
   }
 };
 

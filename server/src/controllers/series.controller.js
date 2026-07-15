@@ -102,8 +102,12 @@ const createSeries = async (req, res) => {
   try {
     const { title, description, genre, studio, status, releaseYear, rating, poster, banner, thumbnail, trailerUrl } = req.body;
 
-    if (!title || !description || !genre || !releaseYear) {
-      return res.status(400).json({ success: false, message: 'Please provide title, description, genre, and release year.' });
+    const finalReleaseYear = releaseYear || new Date().getFullYear().toString();
+    const cleanedRating = rating ? parseFloat(String(rating).replace(',', '.')) || 4.9 : 4.9;
+    const cleanedUploaderId = req.user && req.user.id ? parseInt(req.user.id) : null;
+
+    if (!title || !description || !genre) {
+      return res.status(400).json({ success: false, message: 'Please provide title, description, and genre.' });
     }
 
     const newSeries = await prisma.series.create({
@@ -113,13 +117,13 @@ const createSeries = async (req, res) => {
         genre,
         studio: studio || 'StreamHUB Originals',
         status: status || 'Ongoing',
-        releaseYear,
-        rating: rating ? parseFloat(rating) : 4.9,
+        releaseYear: finalReleaseYear,
+        rating: cleanedRating,
         poster: poster || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=700&q=80',
         banner: banner || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1600&q=80',
         thumbnail: thumbnail || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80',
         trailerUrl: trailerUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ElephantsDream.mp4',
-        uploaderId: req.user.id,
+        uploaderId: cleanedUploaderId,
       },
     });
 
@@ -130,7 +134,8 @@ const createSeries = async (req, res) => {
     });
   } catch (error) {
     console.error('Create series error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error creating series.' });
+    const errMsg = error?.message ? error.message.split('\n').pop() : (typeof error === 'string' ? error : 'Unknown database error');
+    return res.status(500).json({ success: false, message: `Cloud MySQL Error: ${errMsg}` });
   }
 };
 
@@ -139,18 +144,19 @@ const createEpisode = async (req, res) => {
   try {
     const { seriesId, seasonNumber, episodeNumber, title, description, duration, videoUrl, thumbnailUrl, subtitleUrl } = req.body;
 
-    if (!seriesId || !episodeNumber || !title || !duration) {
-      return res.status(400).json({ success: false, message: 'Please provide series ID, episode number, title, and duration.' });
+    const cleanedDuration = parseInt(duration) || 30;
+    if (!seriesId || !title) {
+      return res.status(400).json({ success: false, message: 'Please provide series ID and episode title.' });
     }
 
     const episode = await prisma.episode.create({
       data: {
         seriesId: parseInt(seriesId),
         seasonNumber: seasonNumber ? parseInt(seasonNumber) : 1,
-        episodeNumber: parseInt(episodeNumber),
+        episodeNumber: episodeNumber ? parseInt(episodeNumber) : 1,
         title,
         description: description || '',
-        duration: parseInt(duration),
+        duration: cleanedDuration,
         videoUrl: videoUrl || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4',
         thumbnailUrl: thumbnailUrl || 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
         subtitleUrl: subtitleUrl || null,
@@ -164,7 +170,8 @@ const createEpisode = async (req, res) => {
     });
   } catch (error) {
     console.error('Create episode error:', error);
-    return res.status(500).json({ success: false, message: 'Internal server error adding episode.' });
+    const errMsg = error?.message ? error.message.split('\n').pop() : (typeof error === 'string' ? error : 'Unknown database error');
+    return res.status(500).json({ success: false, message: `Cloud MySQL Error: ${errMsg}` });
   }
 };
 

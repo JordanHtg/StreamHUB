@@ -65,7 +65,7 @@ model PasswordReset {
 model Movie {
   id          Int           @id @default(autoincrement())
   title       String
-  description String
+  description String        @db.LongText
   genre       String        // Primary genre or comma-separated
   duration    Int           // in minutes
   releaseDate String
@@ -74,15 +74,15 @@ model Movie {
   studio      String?       @default("StreamHUB Studios")
   resolution  String?       @default("4K UHD")
   rating      Float?        @default(4.8)
-  cast        String?       // Comma-separated cast list
+  cast        String?       @db.LongText // Comma-separated cast list
   director    String?
   writer      String?
-  poster      String?
-  banner      String?
-  thumbnail   String?
-  trailerUrl  String?
-  videoUrl    String?
-  subtitleUrl String?
+  poster      String?       @db.LongText
+  banner      String?       @db.LongText
+  thumbnail   String?       @db.LongText
+  trailerUrl  String?       @db.LongText
+  videoUrl    String?       @db.LongText
+  subtitleUrl String?       @db.LongText
   views       Int           @default(0)
   likes       Int           @default(0)
   status      String        @default("PUBLISHED") // 'PUBLISHED' | 'DRAFT'
@@ -104,16 +104,16 @@ model Movie {
 model Series {
   id          Int           @id @default(autoincrement())
   title       String
-  description String
+  description String        @db.LongText
   genre       String
   studio      String?       @default("StreamHUB Originals")
   status      String        @default("Ongoing") // 'Ongoing' | 'Completed'
   releaseYear String
   rating      Float?        @default(4.9)
-  poster      String?
-  banner      String?
-  thumbnail   String?
-  trailerUrl  String?
+  poster      String?       @db.LongText
+  banner      String?       @db.LongText
+  thumbnail   String?       @db.LongText
+  trailerUrl  String?       @db.LongText
   views       Int           @default(0)
   likes       Int           @default(0)
   uploaderId  Int?
@@ -137,11 +137,11 @@ model Episode {
   seasonNumber  Int            @default(1)
   episodeNumber Int
   title         String
-  description   String?
+  description   String?        @db.LongText
   duration      Int            // in minutes
-  videoUrl      String?
-  thumbnailUrl  String?
-  subtitleUrl   String?
+  videoUrl      String?        @db.LongText
+  thumbnailUrl  String?        @db.LongText
+  subtitleUrl   String?        @db.LongText
   views         Int            @default(0)
   history       WatchHistory[]
   progress      WatchProgress[]
@@ -288,9 +288,9 @@ model Banner {
   id         Int      @id @default(autoincrement())
   title      String
   subtitle   String?
-  imageUrl   String
-  videoUrl   String?
-  linkUrl    String?
+  imageUrl   String   @db.LongText
+  videoUrl   String?  @db.LongText
+  linkUrl    String?  @db.LongText
   targetId   Int?
   targetType String?  // 'movie' | 'series'
   order      Int      @default(1)
@@ -303,7 +303,7 @@ model Upload {
   uploaderId Int
   uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
   fileName   String
-  fileUrl    String
+  fileUrl    String   @db.LongText
   fileType   String   // 'video' | 'image' | 'subtitle'
   fileSize   Int      @default(0)
   createdAt  DateTime @default(now())
@@ -317,7 +317,7 @@ model Subtitle {
   episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   language  String   // e.g. "English", "Indonesian"
   label     String   // e.g. "English (CC)"
-  fileUrl   String
+  fileUrl   String   @db.LongText
   createdAt DateTime @default(now())
 }
 
@@ -328,7 +328,7 @@ model VideoFile {
   episodeId  Int?
   episode    Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
   resolution String   // e.g. "4K UHD", "1080p FHD", "720p HD"
-  fileUrl    String
+  fileUrl    String   @db.LongText
   fileSize   Int      @default(0)
   createdAt  DateTime @default(now())
 }
