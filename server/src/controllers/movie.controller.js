@@ -168,10 +168,12 @@ const createMovie = async (req, res) => {
       status,
     } = req.body;
 
-    if (!title || !description || !genre || !duration || !releaseDate) {
+    const finalReleaseDate = releaseDate || new Date().toISOString().split('T')[0];
+
+    if (!title || !description || !genre || !duration) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide title, description, genre, duration, and release date.',
+        message: 'Please provide title, description, genre, and duration.',
       });
     }
 
@@ -181,7 +183,7 @@ const createMovie = async (req, res) => {
         description,
         genre,
         duration: parseInt(duration),
-        releaseDate,
+        releaseDate: finalReleaseDate,
         country: country || 'USA',
         language: language || 'English',
         studio: studio || 'StreamHUB Studios',

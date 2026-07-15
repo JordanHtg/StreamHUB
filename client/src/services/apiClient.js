@@ -233,6 +233,16 @@ export const streamApi = {
       const res = await axiosInstance.post('/movies', movieData);
       return res.data;
     } catch (err) {
+      if (err.response?.status === 401) {
+        return { success: false, message: 'Sesi login Anda sudah kadaluarsa karena database baru saja di-reset/seeding. Silakan klik Logout di kanan atas lalu Login kembali dengan uploader@streamhub.com!' };
+      }
+      if (err.response?.status === 403) {
+        return { success: false, message: 'Akun Anda tidak memiliki hak akses Uploader di database Cloud. Silakan login menggunakan akun uploader@streamhub.com!' };
+      }
+      if (err.response?.data?.message) {
+        return { success: false, message: err.response.data.message };
+      }
+      console.warn('API offline, falling back to mock:', err.message);
       return { success: true, data: mockDataService.addMovie(movieData) };
     }
   },
@@ -245,6 +255,10 @@ export const streamApi = {
       const res = await axiosInstance.post('/series/episodes', { seriesId, ...episodeData });
       return res.data;
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return { success: false, message: err.response?.data?.message || 'Sesi login kadaluarsa atau akses ditolak. Silakan Logout dan Login kembali dengan akun uploader@streamhub.com!' };
+      }
+      if (err.response?.data?.message) return { success: false, message: err.response.data.message };
       return { success: true, data: mockDataService.addEpisode(seriesId, episodeData) };
     }
   },
@@ -257,6 +271,10 @@ export const streamApi = {
       const res = await axiosInstance.put(`/movies/${id}`, movieData);
       return res.data;
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return { success: false, message: err.response?.data?.message || 'Sesi login kadaluarsa. Silakan Logout dan Login kembali dengan uploader@streamhub.com!' };
+      }
+      if (err.response?.data?.message) return { success: false, message: err.response.data.message };
       return { success: true, data: mockDataService.updateMovie(id, movieData) };
     }
   },
@@ -269,6 +287,9 @@ export const streamApi = {
       const res = await axiosInstance.delete(`/movies/${id}`);
       return res.data;
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return { success: false, message: err.response?.data?.message || 'Sesi login kadaluarsa. Silakan Logout & Login kembali!' };
+      }
       return mockDataService.deleteMovie(id);
     }
   },
@@ -281,6 +302,10 @@ export const streamApi = {
       const res = await axiosInstance.put(`/series/${id}`, seriesData);
       return res.data;
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return { success: false, message: err.response?.data?.message || 'Sesi login kadaluarsa. Silakan Logout & Login kembali!' };
+      }
+      if (err.response?.data?.message) return { success: false, message: err.response.data.message };
       return { success: true, data: mockDataService.updateSeries(id, seriesData) };
     }
   },
@@ -293,6 +318,9 @@ export const streamApi = {
       const res = await axiosInstance.delete(`/series/${id}`);
       return res.data;
     } catch (err) {
+      if (err.response?.status === 401 || err.response?.status === 403) {
+        return { success: false, message: err.response?.data?.message || 'Sesi login kadaluarsa. Silakan Logout & Login kembali!' };
+      }
       return mockDataService.deleteSeries(id);
     }
   },
