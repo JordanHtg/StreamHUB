@@ -1,0 +1,66 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply bg-stream-black text-stream-white font-sans antialiased;
+  }
+}
+
+/* Custom Luxury Scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #090909;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #262626;
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #E50914;
+}
+
+/* Glassmorphism Utilities */
+@layer components {
+  .glass-panel {
+    @apply bg-stream-dark/80 backdrop-blur-md border border-white/10 shadow-2xl;
+  }
+
+  .glass-card {
+    @apply bg-stream-card/90 backdrop-blur-sm border border-white/5 hover:border-white/20 transition-all duration-300;
+  }
+
+  .glass-nav {
+    @apply bg-stream-black/85 backdrop-blur-lg border-b border-white/10;
+  }
+
+  .glow-red {
+    box-shadow: 0 0 30px rgba(229, 9, 20, 0.4);
+  }
+
+  .glow-red-sm {
+    box-shadow: 0 0 15px rgba(229, 9, 20, 0.3);
+  }
+
+  .skeleton-shimmer {
+    background: linear-gradient(90deg, #161616 0%, #262626 50%, #161616 100%);
+    background-size: 200% 100%;
+    @apply animate-shimmer rounded-lg;
+  }
+}
+
+/* Hide scrollbar for clean carousels */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}

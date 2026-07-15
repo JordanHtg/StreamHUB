@@ -1,0 +1,334 @@
+// StreamHUB - Enterprise Luxury Video Streaming Platform Database Schema
+// Fully compatible with both SQLite (instant local development) and MySQL (cloud/production)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite" // Change to "mysql" when deploying to MySQL provider (PlanetScale, Aiven, etc.)
+  url      = env("DATABASE_URL")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique // 'User' | 'Uploader' | 'Admin'
+  description String?
+  users       User[]
+  createdAt   DateTime @default(now())
+}
+
+model User {
+  id             Int            @id @default(autoincrement())
+  name           String
+  username       String         @unique
+  email          String         @unique
+  password       String
+  phone          String?
+  birthDate      String?
+  gender         String?        // 'Male' | 'Female' | 'Other'
+  avatar         String?        @default("https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80")
+  roleId         Int            @default(1)
+  role           Role           @relation(fields: [roleId], references: [id])
+  movies         Movie[]        @relation("UploadedMovies")
+  series         Series[]       @relation("UploadedSeries")
+  watchHistory   WatchHistory[]
+  watchProgress  WatchProgress[]
+  favorites      Favorite[]
+  watchlists     Watchlist[]
+  comments       Comment[]
+  ratings        Rating[]
+  notifications  Notification[]
+  uploads        Upload[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+}
+
+model OtpCode {
+  id        Int      @id @default(autoincrement())
+  email     String
+  code      String   // 6-digit OTP
+  type      String   // 'REGISTER' | 'RESET_PASSWORD'
+  expiresAt DateTime
+  isUsed    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model PasswordReset {
+  id        Int      @id @default(autoincrement())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+}
+
+model Movie {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String
+  genre       String        // Primary genre or comma-separated
+  duration    Int           // in minutes
+  releaseDate String
+  country     String?       @default("USA")
+  language    String?       @default("English")
+  studio      String?       @default("StreamHUB Studios")
+  resolution  String?       @default("4K UHD")
+  rating      Float?        @default(4.8)
+  cast        String?       // Comma-separated cast list
+  director    String?
+  writer      String?
+  poster      String?
+  banner      String?
+  thumbnail   String?
+  trailerUrl  String?
+  videoUrl    String?
+  subtitleUrl String?
+  views       Int           @default(0)
+  likes       Int           @default(0)
+  status      String        @default("PUBLISHED") // 'PUBLISHED' | 'DRAFT'
+  uploaderId  Int?
+  uploader    User?         @relation("UploadedMovies", fields: [uploaderId], references: [id])
+  genres      MovieGenre[]
+  history     WatchHistory[]
+  progress    WatchProgress[]
+  favorites   Favorite[]
+  watchlists  Watchlist[]
+  comments    Comment[]
+  ratings     Rating[]
+  subtitles   Subtitle[]
+  videoFiles  VideoFile[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Series {
+  id          Int           @id @default(autoincrement())
+  title       String
+  description String
+  genre       String
+  studio      String?       @default("StreamHUB Originals")
+  status      String        @default("Ongoing") // 'Ongoing' | 'Completed'
+  releaseYear String
+  rating      Float?        @default(4.9)
+  poster      String?
+  banner      String?
+  thumbnail   String?
+  trailerUrl  String?
+  views       Int           @default(0)
+  likes       Int           @default(0)
+  uploaderId  Int?
+  uploader    User?         @relation("UploadedSeries", fields: [uploaderId], references: [id])
+  episodes    Episode[]
+  genres      SeriesGenre[]
+  history     WatchHistory[]
+  progress    WatchProgress[]
+  favorites   Favorite[]
+  watchlists  Watchlist[]
+  comments    Comment[]
+  ratings     Rating[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model Episode {
+  id            Int            @id @default(autoincrement())
+  seriesId      Int
+  series        Series         @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  seasonNumber  Int            @default(1)
+  episodeNumber Int
+  title         String
+  description   String?
+  duration      Int            // in minutes
+  videoUrl      String?
+  thumbnailUrl  String?
+  subtitleUrl   String?
+  views         Int            @default(0)
+  history       WatchHistory[]
+  progress      WatchProgress[]
+  comments      Comment[]
+  subtitles     Subtitle[]
+  videoFiles    VideoFile[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Genre {
+  id           Int           @id @default(autoincrement())
+  name         String        @unique
+  slug         String        @unique
+  description  String?
+  movieGenres  MovieGenre[]
+  seriesGenres SeriesGenre[]
+}
+
+model Category {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  slug        String   @unique
+  description String?
+}
+
+model MovieGenre {
+  id      Int    @id @default(autoincrement())
+  movieId Int
+  genreId Int
+  movie   Movie  @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  genre   Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@unique([movieId, genreId])
+}
+
+model SeriesGenre {
+  id       Int    @id @default(autoincrement())
+  seriesId Int
+  genreId  Int
+  series   Series @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  genre    Genre  @relation(fields: [genreId], references: [id], onDelete: Cascade)
+
+  @@unique([seriesId, genreId])
+}
+
+model WatchHistory {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId   Int?
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  seriesId  Int?
+  series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episodeId Int?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  watchedAt DateTime @default(now())
+}
+
+model WatchProgress {
+  id                 Int      @id @default(autoincrement())
+  userId             Int
+  user               User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId            Int?
+  movie              Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  seriesId           Int?
+  series             Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episodeId          Int?
+  episode            Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  currentTime        Float    @default(0) // seconds watched
+  totalDuration      Float    // total duration in seconds
+  progressPercentage Float    @default(0) // percentage 0-100
+  lastUpdated        DateTime @updatedAt
+
+  @@unique([userId, movieId, episodeId])
+}
+
+model Favorite {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId   Int?
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  seriesId  Int?
+  series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, movieId, seriesId])
+}
+
+model Watchlist {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId   Int?
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  seriesId  Int?
+  series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, movieId, seriesId])
+}
+
+model Comment {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId   Int?
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  seriesId  Int?
+  series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  episodeId Int?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  content   String
+  createdAt DateTime @default(now())
+}
+
+model Rating {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  movieId   Int?
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  seriesId  Int?
+  series    Series?  @relation(fields: [seriesId], references: [id], onDelete: Cascade)
+  score     Float    // e.g. 5.0
+  review    String?
+  createdAt DateTime @default(now())
+
+  @@unique([userId, movieId, seriesId])
+}
+
+model Notification {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}
+
+model Banner {
+  id         Int      @id @default(autoincrement())
+  title      String
+  subtitle   String?
+  imageUrl   String
+  videoUrl   String?
+  linkUrl    String?
+  targetId   Int?
+  targetType String?  // 'movie' | 'series'
+  order      Int      @default(1)
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+}
+
+model Upload {
+  id         Int      @id @default(autoincrement())
+  uploaderId Int
+  uploader   User     @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  fileName   String
+  fileUrl    String
+  fileType   String   // 'video' | 'image' | 'subtitle'
+  fileSize   Int      @default(0)
+  createdAt  DateTime @default(now())
+}
+
+model Subtitle {
+  id        Int      @id @default(autoincrement())
+  movieId   Int?
+  movie     Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  episodeId Int?
+  episode   Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  language  String   // e.g. "English", "Indonesian"
+  label     String   // e.g. "English (CC)"
+  fileUrl   String
+  createdAt DateTime @default(now())
+}
+
+model VideoFile {
+  id         Int      @id @default(autoincrement())
+  movieId    Int?
+  movie      Movie?   @relation(fields: [movieId], references: [id], onDelete: Cascade)
+  episodeId  Int?
+  episode    Episode? @relation(fields: [episodeId], references: [id], onDelete: Cascade)
+  resolution String   // e.g. "4K UHD", "1080p FHD", "720p HD"
+  fileUrl    String
+  fileSize   Int      @default(0)
+  createdAt  DateTime @default(now())
+}

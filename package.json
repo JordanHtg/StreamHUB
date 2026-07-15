@@ -1,0 +1,32 @@
+{
+  "name": "streamhub-root",
+  "version": "1.0.0",
+  "description": "StreamHUB - Enterprise Luxury Video Streaming Platform (Netflix & Disney+ Inspired)",
+  "private": true,
+  "scripts": {
+    "dev": "concurrently \"npm run dev:client\" \"npm run dev:server\"",
+    "dev:client": "cd client && npm run dev",
+    "dev:server": "cd server && npm run dev",
+    "build": "cd client && npm install && npm run build",
+    "build:server": "cd server && npm install && npx prisma generate",
+    "start": "cd server && npm start",
+    "postinstall": "npm run install:all",
+    "install:all": "cd client && npm install && cd ../server && npm install"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "keywords": [
+    "streamhub",
+    "netflix-clone",
+    "video-streaming",
+    "react",
+    "vite",
+    "tailwind",
+    "prisma",
+    "mysql",
+    "framer-motion"
+  ],
+  "author": "StreamHUB Team",
+  "license": "MIT"
+}
