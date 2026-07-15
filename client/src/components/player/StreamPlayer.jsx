@@ -3,6 +3,14 @@ import ReactPlayer from 'react-player';
 import { Play, Pause, Volume2, VolumeX, Maximize, Minimize, SkipForward, SkipBack, Settings, Subtitles, Gauge, Monitor, ArrowRight, X, Check, AlertCircle } from 'lucide-react';
 import { streamApi } from '../../services/apiClient';
 
+const RELIABLE_MIRRORS = [
+  { name: 'Server #1: Ultra-HD MP4 Mirror (JSDelivr Global CDN)', url: 'https://cdn.jsdelivr.net/gh/mediaelement/mediaelement-files@master/big_buck_bunny.mp4' },
+  { name: 'Server #2: Apple HLS Adaptive 4K/HD Stream', url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/img_bipbop_adv_example_fmp4/master.m3u8' },
+  { name: 'Server #3: Akamai Adaptive Bitrate HLS', url: 'https://bitmovin-a.akamaihd.net/content/MI201109210084_1/m3u8s/f08e80da-bf1d-4e3d-8899-f0f6155f6efa.m3u8' },
+  { name: 'Server #4: Apple BipBop 16:9 Widescreen HD', url: 'https://devstreaming-cdn.apple.com/videos/streaming/examples/bipbop_16x9/bipbop_16x9_variant.m3u8' },
+  { name: 'Server #5: Google Storage Backup Stream', url: 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4' },
+];
+
 const StreamPlayer = ({
   url,
   title,
@@ -22,7 +30,11 @@ const StreamPlayer = ({
   const containerRef = useRef(null);
 
   // Playback state
-  const [currentUrl, setCurrentUrl] = useState(url || 'https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
+  const [currentUrl, setCurrentUrl] = useState(() => {
+    if (url && !url.includes('commondatastorage.googleapis.com')) return url;
+    return RELIABLE_MIRRORS[0].url;
+  });
+  const [mirrorIndex, setMirrorIndex] = useState(0);
   const [playing, setPlaying] = useState(true);
   const [volume, setVolume] = useState(0.8);
   const [muted, setMuted] = useState(false);
@@ -55,9 +67,14 @@ const StreamPlayer = ({
 
   useEffect(() => {
     if (url) {
-      setCurrentUrl(url);
+      if (!url.includes('commondatastorage.googleapis.com')) {
+        setCurrentUrl(url);
+      } else {
+        setCurrentUrl(RELIABLE_MIRRORS[0].url);
+      }
       setIsBuffering(true);
       setHasError(false);
+      setMirrorIndex(0);
     }
   }, [url]);
 
@@ -353,7 +370,15 @@ const StreamPlayer = ({
       </div>
 
       {/* Main Video Surface */}
-      <div className="w-full aspect-video bg-black flex items-center justify-center relative">
+      <div
+        className="w-full aspect-video bg-black flex items-center justify-center relative cursor-pointer"
+        onClick={() => {
+          if (muted) {
+            setMuted(false);
+            triggerAlert('🔊 Unmuted');
+          }
+        }}
+      >
         <ReactPlayer
           ref={playerRef}
           url={currentUrl}
@@ -361,6 +386,15 @@ const StreamPlayer = ({
           volume={volume}
           muted={muted}
           playbackRate={playbackRate}
+          config={{
+            file: {
+              attributes: {
+                crossOrigin: 'anonymous',
+                controlsList: 'nodownload',
+                playsInline: true,
+              },
+            },
+          }}
           onProgress={handleProgress}
           onDuration={(d) => {
             setDuration(d);
@@ -377,7 +411,38 @@ const StreamPlayer = ({
           onBuffer={() => setIsBuffering(true)}
           onBufferEnd={() => setIsBuffering(false)}
           onError={(e) => {
-            console.error('Video stream error:', e);
+            console.error('Video stream error details:', e);
+            const errString = String(e?.message || e?.name || e || '');
+            const isAutoplayIssue =
+              errString.includes('NotAllowedError') ||
+              errString.includes('play()') ||
+              errString.includes('interact') ||
+              errString.includes('AbortError') ||
+              e?.code === 2 ||
+              e?.name === 'NotAllowedError';
+
+            if (isAutoplayIssue) {
+              console.warn('Autoplay blocked by browser. Auto-switching to muted playback.');
+              setMuted(true);
+              setPlaying(true);
+              setHasError(false);
+              setIsBuffering(false);
+              triggerAlert('🔇 Autoplay Muted (Click video surface to unmute)');
+              return;
+            }
+
+            // Auto-switch to next reliable CDN mirror before showing error overlay
+            if (mirrorIndex < RELIABLE_MIRRORS.length - 1) {
+              const nextIdx = mirrorIndex + 1;
+              console.warn(`Primary source failed. Auto-switching to CDN mirror #${nextIdx + 1}`);
+              setMirrorIndex(nextIdx);
+              setCurrentUrl(RELIABLE_MIRRORS[nextIdx].url);
+              setIsBuffering(true);
+              setHasError(false);
+              triggerAlert(`⚡ Auto-Switched to ${RELIABLE_MIRRORS[nextIdx].name}`);
+              return;
+            }
+
             setIsBuffering(false);
             setHasError(true);
           }}
@@ -400,37 +465,56 @@ const StreamPlayer = ({
 
         {/* Error / Fallback Stream Overlay */}
         {hasError && (
-          <div className="absolute inset-0 z-40 bg-stream-black/95 backdrop-blur-md flex flex-col items-center justify-center p-8 text-center animate-fadeIn">
-            <div className="w-16 h-16 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mb-4 border border-red-500/40 shadow-xl">
-              <AlertCircle className="w-8 h-8" />
+          <div className="absolute inset-0 z-40 bg-stream-black/95 backdrop-blur-md flex flex-col items-center justify-center p-6 text-center animate-fadeIn overflow-y-auto">
+            <div className="w-14 h-14 rounded-2xl bg-red-500/20 text-red-400 flex items-center justify-center mb-3 border border-red-500/40 shadow-xl flex-shrink-0">
+              <AlertCircle className="w-7 h-7" />
             </div>
-            <h3 className="text-2xl font-black text-white mb-2">⚠️ Video Source Temporarily Unreachable</h3>
-            <p className="text-sm text-stream-gray-300 max-w-lg mb-6 leading-relaxed">
+            <h3 className="text-xl font-black text-white mb-1">⚠️ Video Source Temporarily Unreachable</h3>
+            <p className="text-xs text-stream-gray-300 max-w-lg mb-4 leading-relaxed">
               The video source URL could not be played (`{currentUrl.slice(0, 45)}...`). This usually happens if a local file blob expired across browser reloads or the CDN link is restricted.
             </p>
-            <div className="flex flex-wrap items-center justify-center gap-4">
-              <button
-                onClick={() => {
-                  setCurrentUrl('https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4');
-                  setHasError(false);
-                  setIsBuffering(true);
-                  triggerAlert('Switched to Fallback 4K Stream');
-                }}
-                className="px-6 py-3.5 bg-stream-red hover:bg-stream-red-hover text-white rounded-xl font-bold text-sm flex items-center space-x-2.5 shadow-2xl glow-red transition-transform transform hover:scale-105"
-              >
-                <Play className="w-4 h-4 fill-white" />
-                <span>Switch to Fallback 4K Stream (Big Buck Bunny HD)</span>
-              </button>
-              <button
-                onClick={() => {
-                  setHasError(false);
-                  setIsBuffering(true);
-                  if (playerRef.current) playerRef.current.seekTo(0);
-                }}
-                className="px-6 py-3.5 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-sm transition-colors"
-              >
-                🔄 Retry Stream
-              </button>
+
+            <div className="flex flex-col items-center justify-center gap-2.5 w-full max-w-xl">
+              <p className="text-xs font-bold text-yellow-400 uppercase tracking-wider mb-1">
+                ⚡ Select High-Speed Public Mirror Server:
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 w-full">
+                {RELIABLE_MIRRORS.map((mirror, idx) => (
+                  <button
+                    key={mirror.name}
+                    onClick={() => {
+                      setMirrorIndex(idx);
+                      setCurrentUrl(mirror.url);
+                      setHasError(false);
+                      setIsBuffering(true);
+                      setPlaying(true);
+                      triggerAlert(`⚡ Switched to: ${mirror.name}`);
+                    }}
+                    className="p-2.5 bg-stream-dark hover:bg-stream-red text-left rounded-xl border border-white/10 hover:border-stream-red transition-all flex flex-col justify-center shadow group"
+                  >
+                    <span className="text-xs font-bold text-white flex items-center justify-between">
+                      <span className="truncate">{mirror.name}</span>
+                      <Play className="w-3 h-3 fill-white flex-shrink-0 ml-1.5" />
+                    </span>
+                    <span className="text-[10px] text-stream-gray-400 group-hover:text-white/80 truncate">
+                      {mirror.url.includes('.m3u8') ? 'HLS Adaptive Bitrate (4K/HD)' : 'Direct MP4 High Speed'}
+                    </span>
+                  </button>
+                ))}
+              </div>
+              <div className="flex items-center space-x-3 mt-2">
+                <button
+                  onClick={() => {
+                    setHasError(false);
+                    setIsBuffering(true);
+                    setPlaying(true);
+                    if (playerRef.current) playerRef.current.seekTo(0);
+                  }}
+                  className="px-5 py-2 bg-white/10 hover:bg-white/20 text-white rounded-xl font-semibold text-xs flex items-center space-x-2 transition-colors"
+                >
+                  <span>🔄 Retry Current URL</span>
+                </button>
+              </div>
             </div>
           </div>
         )}
