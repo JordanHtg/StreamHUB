@@ -6,7 +6,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite" // Change to "mysql" when deploying to MySQL provider (PlanetScale, Aiven, etc.)
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
