@@ -81,17 +81,26 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
   const handleImageFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
-      const objectUrl = URL.createObjectURL(file);
-      setLocalImagePreview(objectUrl);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLocalImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
   const handleVideoFileChange = (e) => {
     const file = e.target.files?.[0];
     if (file) {
+      if (file.size > 4000000) {
+        setErrorMessage('⚠️ Peringatan: Ukuran video lokal melebihi kuota memori browser (~4MB untuk LocalStorage). Gunakan mode "Stream URL (MP4 / HLS)" untuk video panjang agar tersimpan permanen!');
+      }
       setLocalVideoName(file.name);
-      const objectUrl = URL.createObjectURL(file);
-      setLocalVideoUrl(objectUrl);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLocalVideoUrl(reader.result);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
