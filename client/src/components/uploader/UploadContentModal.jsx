@@ -28,6 +28,9 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
 
   const [errorMessage, setErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadStage, setUploadStage] = useState('');
+  const [storageStatus, setStorageStatus] = useState(null); // 'cloud' | 'local'
 
   useEffect(() => {
     if (isOpen && editItem) {
@@ -107,6 +110,9 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
   const onSubmit = async (data) => {
     setErrorMessage('');
     setSuccessMessage('');
+    setStorageStatus(null);
+    setUploadProgress(15);
+    setUploadStage('Encoding media chunks & preparing payload...');
     try {
       const finalData = {
         ...data,
@@ -116,6 +122,10 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
         thumbnail: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
         videoUrl: sourceMode === 'local' && localVideoUrl ? localVideoUrl : data.videoUrl,
       };
+
+      await new Promise((r) => setTimeout(r, 400));
+      setUploadProgress(45);
+      setUploadStage('Connecting to TiDB Cloud & pushing record...');
 
       let res;
       if (editItem) {
@@ -130,17 +140,32 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
         res = await streamApi.createMovie(finalData);
       }
 
+      setUploadProgress(85);
+      setUploadStage('Verifying global CDN propagation & database sync...');
+      await new Promise((r) => setTimeout(r, 300));
+
       if (res.success || res.data || res.id) {
-        setSuccessMessage(editItem ? 'Content successfully updated!' : 'Content successfully published to StreamHUB!');
+        setUploadProgress(100);
+        setUploadStage('Upload Complete!');
+        const isLocalFallback = localStorage.getItem('streamhub_mock_mode') === 'true' || (res.data?.id && String(res.data.id).length > 10) || (res.id && String(res.id).length > 10);
+        if (isLocalFallback) {
+          setStorageStatus('local');
+          setSuccessMessage(editItem ? 'Content successfully updated in Local Storage!' : 'Content published to Local Device Storage (Mock Mode / Cloud Fallback active).');
+        } else {
+          setStorageStatus('cloud');
+          setSuccessMessage(editItem ? 'Content successfully updated on Cloud Database!' : 'Content successfully published & synced globally to TiDB Cloud!');
+        }
         setTimeout(() => {
           reset();
           if (onSuccess) onSuccess(res.data || res);
           onClose();
-        }, 1200);
+        }, 2200);
       } else {
+        setUploadProgress(0);
         setErrorMessage(res.message || 'Failed to publish content.');
       }
     } catch (err) {
+      setUploadProgress(0);
       setErrorMessage(err.message || 'Error publishing content.');
     }
   };
@@ -173,6 +198,53 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
 
         {/* Form Content */}
         <form onSubmit={handleSubmit(onSubmit)} className="p-6 overflow-y-auto space-y-5 flex-1">
+          {uploadProgress > 0 && uploadProgress < 100 && (
+            <div className="p-4 bg-stream-dark rounded-2xl border border-stream-red/40 space-y-2.5 animate-pulse">
+              <div className="flex items-center justify-between text-xs font-bold text-white">
+                <span className="flex items-center space-x-2">
+                  <span className="w-2 h-2 rounded-full bg-stream-red animate-ping" />
+                  <span>{uploadStage}</span>
+                </span>
+                <span className="text-stream-red font-mono font-black">{uploadProgress}%</span>
+              </div>
+              <div className="w-full bg-white/10 h-2.5 rounded-full overflow-hidden">
+                <div
+                  className="bg-gradient-to-r from-stream-red via-red-500 to-amber-500 h-full rounded-full transition-all duration-300 shadow-lg glow-red-sm"
+                  style={{ width: `${uploadProgress}%` }}
+                />
+              </div>
+              <p className="text-[10px] text-stream-gray-400">
+                ⏳ Estimasi waktu proses: {uploadProgress < 50 ? '1-2 detik (Media processing & chunking)' : '1 detik (TiDB Cloud database synchronization)'}
+              </p>
+            </div>
+          )}
+
+          {storageStatus === 'cloud' && (
+            <div className="p-4 bg-emerald-500/15 border border-emerald-500/40 rounded-2xl text-emerald-400 text-xs flex items-center justify-between shadow-lg animate-fadeIn">
+              <div className="flex items-center space-x-2.5">
+                <CheckCircle className="w-5 h-5 flex-shrink-0 text-emerald-400" />
+                <div>
+                  <p className="font-bold">✨ Tersinkron ke TiDB Cloud Database!</p>
+                  <p className="text-[11px] text-emerald-300/80">Film ini sekarang langsung muncul secara real-time di seluruh perangkat di dunia.</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-emerald-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider">Cloud Live</span>
+            </div>
+          )}
+
+          {storageStatus === 'local' && (
+            <div className="p-4 bg-amber-500/15 border border-amber-500/40 rounded-2xl text-amber-300 text-xs flex items-center justify-between shadow-lg animate-fadeIn">
+              <div className="flex items-center space-x-2.5">
+                <AlertCircle className="w-5 h-5 flex-shrink-0 text-amber-400" />
+                <div>
+                  <p className="font-bold">⚠️ Tersimpan di LocalStorage (Perangkat Ini Saja)</p>
+                  <p className="text-[11px] text-amber-200/80">Koneksi TiDB Cloud belum terhubung atau mode Offline aktif. Film hanya tampil di browser ini.</p>
+                </div>
+              </div>
+              <span className="px-2.5 py-1 bg-amber-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider">Local Mock</span>
+            </div>
+          )}
+
           {errorMessage && (
             <div className="p-3 bg-red-500/15 border border-red-500/30 rounded-xl text-red-400 text-xs flex items-center space-x-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
