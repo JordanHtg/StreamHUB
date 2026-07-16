@@ -235,9 +235,31 @@ const updateMovie = async (req, res) => {
     }
 
     const updateData = { ...req.body };
-    if (updateData.duration) updateData.duration = parseInt(updateData.duration) || existingMovie.duration;
-    if (updateData.rating) updateData.rating = parseFloat(String(updateData.rating).replace(',', '.')) || existingMovie.rating;
-    if (updateData.uploaderId) updateData.uploaderId = parseInt(updateData.uploaderId);
+    delete updateData.id;
+    delete updateData.subtitles;
+    delete updateData.uploader;
+    delete updateData.comments;
+    delete updateData.ratings;
+    delete updateData.videoFiles;
+    delete updateData.similarMovies;
+    delete updateData.episodes;
+    delete updateData.genres;
+    delete updateData.history;
+    delete updateData.progress;
+    delete updateData.favorites;
+    delete updateData.watchlists;
+    delete updateData.createdAt;
+    delete updateData.updatedAt;
+
+    if (req.body.subtitles && Array.isArray(req.body.subtitles)) {
+      updateData.subtitleUrl = JSON.stringify(req.body.subtitles);
+    } else if (updateData.subtitleUrl && typeof updateData.subtitleUrl !== 'string') {
+      updateData.subtitleUrl = JSON.stringify(updateData.subtitleUrl);
+    }
+
+    if (updateData.duration !== undefined) updateData.duration = parseInt(updateData.duration) || existingMovie.duration;
+    if (updateData.rating !== undefined) updateData.rating = parseFloat(String(updateData.rating).replace(',', '.')) || existingMovie.rating;
+    if (updateData.uploaderId !== undefined && updateData.uploaderId !== null) updateData.uploaderId = parseInt(updateData.uploaderId);
 
     const updatedMovie = await prisma.movie.update({
       where: { id: movieId },

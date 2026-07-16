@@ -225,8 +225,14 @@ const UploadContentModal = ({ isOpen, onClose, onSuccess, isEpisode = false, ser
         thumbnail: sourceMode === 'local' && localImagePreview ? localImagePreview : data.poster,
         videoUrl: resolvedVideoUrl,
         subtitleUrl: JSON.stringify(subtitleTracks),
-        subtitles: subtitleTracks,
       };
+      delete finalData.subtitles;
+      delete finalData.uploader;
+      delete finalData.comments;
+      delete finalData.ratings;
+      delete finalData.videoFiles;
+      delete finalData.similarMovies;
+      delete finalData.episodes;
 
       await new Promise((r) => setTimeout(r, 400));
       setUploadProgress(45);
